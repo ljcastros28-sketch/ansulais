@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ANSULAIS — Catálogos</title>
+  <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Helvetica LT Pro';
+      src: url('tipografia/Helvetica LT Pro Roman.ttf') format('truetype');
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: 'Helvetica LT Pro';
+      src: url('tipografia/Helvetica LT Pro Bold.ttf') format('truetype');
+      font-weight: 700;
+    }
+
+    /* ── TEMAS ── */
+    :root {
+      --chrome-bg:     #fff6d7;
+      --chrome-fg:     #0c1a29;
+      --chrome-muted:  rgba(12,26,41,0.38);
+      --chrome-faint:  rgba(12,26,41,0.18);
+      --chrome-hover:  rgba(12,26,41,0.06);
+      --book-bg:       #0c1a29;
+      --book-fg:       #fff6d7;          /* color legible SOBRE el fondo oscuro del libro */
+      --book-fg-muted: rgba(255,246,215,0.48);
+      --cover-fg:      #0c1a29;
+      --tab-on:        #0c1a29;
+      --tab-on-fg:     #fff6d7;
+    }
+    body[data-theme="comedores"] {
+      --chrome-fg:     #380906;
+      --chrome-muted:  rgba(56,9,6,0.38);
+      --chrome-faint:  rgba(56,9,6,0.18);
+      --chrome-hover:  rgba(56,9,6,0.06);
+      --book-bg:       #380906;
+      --book-fg:       #fff6d7;
+      --book-fg-muted: rgba(255,246,215,0.48);
+      --cover-fg:      #380906;
+      --tab-on:        #380906;
+    }
+    body[data-theme="alcobas"] {
+      --chrome-bg:     #0c1a29;
+      --chrome-fg:     #fff6d7;
+      --chrome-muted:  rgba(255,246,215,0.42);
+      --chrome-faint:  rgba(255,246,215,0.18);
+      --chrome-hover:  rgba(255,246,215,0.1);
+      --book-bg:       #fff6d7;
+      --book-fg:       #0c1a29;
+      --book-fg-muted: rgba(12,26,41,0.42);
+      --cover-fg:      #fff6d7;
+      --tab-on:        #fff6d7;
+      --tab-on-fg:     #0c1a29;
+    }
+    body[data-theme="auxiliares"] {
+      --chrome-bg:     #380906;
+      --chrome-fg:     #fff6d7;
+      --chrome-muted:  rgba(255,246,215,0.42);
+      --chrome-faint:  rgba(255,246,215,0.18);
+      --chrome-hover:  rgba(255,246,215,0.1);
+      --book-bg:       #fff6d7;
+      --book-fg:       #380906;
+      --book-fg-muted: rgba(56,9,6,0.42);
+      --cover-fg:      #fff6d7;
+      --tab-on:        #fff6d7;
+      --tab-on-fg:     #380906;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--book-bg);
+      transition: background 0.45s ease;
+      font-family: 'Helvetica LT Pro', Helvetica, Arial, sans-serif;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      background: var(--chrome-bg);
+      transition: background 0.45s ease;
+      box-shadow: 0 2px 28px rgba(0,0,0,0.07);
+      z-index: 100;
+    }
+
+    #header-isotipo { height: 34px; width: auto; }
+    #header-isotipo path { fill: var(--chrome-fg); transition: fill 0.45s ease; }
+
+    #header-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      max-width: calc(100vw - 160px);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    #header-center::-webkit-scrollbar { display: none; }
+
+    .nav-tab {
+      padding: 7px 20px;
+      border-radius: 100px;
+      border: 2px solid var(--chrome-faint);
+      background: transparent;
+      color: var(--chrome-muted);
+      font-family: inherit;
+      font-size: 0.59rem;
+      letter-spacing: 0.18em;
+      text-transform: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .nav-tab:hover:not(.pronto) {
+      border-color: var(--chrome-fg);
+      color: var(--chrome-fg);
+    }
+    .nav-tab.active {
+      background: var(--tab-on);
+      color: var(--tab-on-fg);
+      border-color: transparent;
+    }
+    .nav-tab.pronto { opacity: 0.38; cursor: default; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 500px) {
+      #btn-fs { display: none; }
+      #header-center { max-width: calc(100vw - 64px); }
+      .nav-tab { padding: 5px 13px; font-size: 0.52rem; letter-spacing: 0.1em; }
+      .ctrl-btn { width: 38px; height: 38px; }
+    }
+
+    /* ── LOADING ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--book-bg);
+      transition: background 0.45s ease, opacity 0.5s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      gap: 1.4rem;
+    }
+    #loading.fade-out { opacity: 0; pointer-events: none; }
+    #loading.hidden   { display: none !important; }
+
+    #loading-wordmark { height: 72px; width: auto; max-width: 80vw; }
+    #loading-wordmark path { fill: var(--book-fg); transition: fill 0.45s ease; }
+
+    .loading-dots {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .loading-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--book-fg);
+      opacity: 0.15;
+      animation: dotWave 1.4s ease-in-out infinite both;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.22s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.44s; }
+    @keyframes dotWave {
+      0%, 60%, 100% { opacity: 0.15; transform: translateY(0); }
+      30% { opacity: 1;   transform: translateY(-7px); }
+    }
+    #loading-pct {
+      font-size: 0.55rem;
+      letter-spacing: 0.2em;
+      color: var(--book-fg-muted);
+      font-family: inherit;
+      min-height: 1.2em;
+    }
+    #loading-error {
+      display: none;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      color: var(--book-fg-muted);
+      text-align: center;
+      line-height: 2.2;
+    }
+
+    /* ── BOOK ── */
+    #book-container {
+      position: fixed;
+      top: 64px; bottom: 62px; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+    #book {
+      position: relative;
+    }
+    .pf-page img {
+      width: 100%; height: 100%;
+      object-fit: fill;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+      border-radius: 0;
+    }
+    /* Round outer corners only (spine side stays square, like a real book) */
+    .stf__item.--left  .pf-page img { border-radius: 14px 0 0 14px; }
+    .stf__item.--right .pf-page img { border-radius: 0 14px 14px 0; }
+    /* ── PORTADA ── */
+    #cover-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: var(--book-bg);
+      transition: background 0.45s ease, opacity 0.35s ease;
+      z-index: 20;
+    }
+    #cover-overlay svg { max-width: 100%; max-height: 100%; display: block; }
+
+    /* ── CONTROLES ── */
+    #controls {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.8rem;
+      background: var(--chrome-bg);
+      transition: background 0.45s ease;
+      box-shadow: 0 -2px 28px rgba(0,0,0,0.05);
+      z-index: 100;
+    }
+    .ctrl-btn {
+      width: 42px; height: 42px;
+      background: transparent;
+      border: 2px solid var(--chrome-faint);
+      border-radius: 14px;
+      color: var(--chrome-fg);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .ctrl-btn:hover { background: var(--chrome-hover); border-color: var(--chrome-fg); }
+
+    #page-indicator {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      color: var(--chrome-muted);
+      min-width: 110px;
+      text-align: center;
+    }
+    #page-indicator b { color: var(--chrome-fg); font-weight: 400; }
+
+    #btn-fs {
+      background: transparent;
+      border: none;
+      color: var(--chrome-muted);
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    #btn-fs:hover { color: var(--chrome-fg); }
+  </style>
+</head>
+<body data-theme="salas">
+
+<div id="header">
+  <!-- Isotipo: solo el símbolo A, sin letras -->
+  <svg id="header-isotipo" viewBox="135 145 75 93" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M206.06,234.75h0s-18.12,0-18.12,0h0c-.16-9.76-8.12-17.59-17.88-17.59h-10.92l-.29,17.59h-18.78v-85.33h0c10.76,0,19.49,8.73,19.49,19.49v14.64s5.71,2.09,5.71,2.09c11.38,4.15,21.64,11.07,29.26,20.48,4.42,5.45,7.74,11.22,9.58,17.62,1.14,3.97,1.94,7.85,1.94,11.02ZM159.57,185.23v17.19h12.35c1.55,0,2.18-2,.91-2.89l-13.26-14.3Z"/>
+  </svg>
+
+  <div id="header-center">
+    <button class="nav-tab active" data-catalog="salas">Salas</button>
+    <button class="nav-tab"        data-catalog="comedores">Comedores</button>
+    <button class="nav-tab pronto" data-catalog="alcobas">Alcobas</button>
+    <button class="nav-tab pronto" data-catalog="auxiliares">Auxiliares</button>
+  </div>
+
+  <button id="btn-fs">&#x26F6; Pantalla completa</button>
+</div>
+
+<div id="loading">
+  <svg id="loading-wordmark" viewBox="118 115 578 155" xmlns="http://www.w3.org/2000/svg" aria-label="Ansulais">
+    <path d="M281.43,190.54v44.21h-16.64v-40.05c0-5.72-4.45-10.58-10.16-10.8-7.94-.31-13.73,4.96-13.73,14.13v36.72h-16.64v-63.22h15.92v9.27h.24c4.04-7.72,11.05-10.93,19.01-10.93,13.43,0,21.99,8.79,21.99,20.68Z"/>
+    <path d="M356.17,190.78h-16.28c-.95-6.3-4.64-8.32-11.29-8.32-6.3,0-10.1,1.54-10.1,6.18,0,4.28,8.08,5.7,16.04,7.25,18.03,3.4,23.37,9.56,23.53,18.27.2,11.16-8.57,20.41-19.66,21.74-23.57,2.82-38.45-6.01-38.45-21.34h17.11c0,5.11,3.09,9.27,13.67,9.27,6.66,0,10.7-2.73,10.7-6.54,0-4.16-5.59-5.58-17.11-7.72-14.74-2.61-22.1-8.2-22.1-18.54,0-12.48,9.27-21.15,25.55-21.15,19.01,0,27.69,8.08,28.4,20.92Z"/>
+    <path d="M394.19,171.52v39.57c0,6.22,5.04,11.46,11.25,11.28,7.26-.21,12.4-5.63,12.4-14.02v-36.84h16.64v63.22h-15.92v-8.91h-.24c-3.92,6.77-10.34,10.58-19.25,10.58-13.67,0-21.51-8.56-21.51-22.82v-42.07h16.64Z"/>
+    <path d="M474.4,149.42v85.33h-16.64v-85.33h16.64Z"/>
+    <path d="M548.79,222.98c0,6.18,1.31,8.32,3.68,9.27v2.49h-17.94c-.83-2.49-1.43-4.75-1.54-7.49-6.06,6.54-12.36,9.15-20.44,9.15-11.53,0-19.25-7.13-19.25-18.42,0-8.2,2.97-17.94,19.85-20.44l11.88-1.78c6.18-.95,7.49-2.14,7.49-5.35,0-4.4-2.73-7.25-10.93-7.25-6.18,0-9.63,2.73-10.22,8.8h-16.04c1.31-13.31,7.61-22.1,27.81-22.1,16.28,0,25.67,6.89,25.67,17.83v35.3ZM532.51,211.81v-7.84c-2.85,1.78-5.47,2.61-11.88,3.57-6.65.95-10.69,3.33-10.7,9.38,0,4.11,3.2,7.5,7.31,7.61,7.5.19,15.27-4.84,15.27-12.71Z"/>
+    <path d="M588,148.59v15.45h-16.64v-15.45h16.64ZM588,171.52v63.22h-16.64v-63.22h16.64Z"/>
+    <path d="M663.22,190.78h-16.28c-.95-6.3-4.64-8.32-11.29-8.32-6.3,0-10.1,1.54-10.1,6.18,0,4.28,8.08,5.7,16.04,7.25,18.03,3.4,23.37,9.56,23.53,18.27.2,11.16-8.57,20.41-19.66,21.74-23.57,2.82-38.45-6.01-38.45-21.34h17.11c0,5.11,3.09,9.27,13.67,9.27,6.65,0,10.7-2.73,10.7-6.54,0-4.16-5.58-5.58-17.11-7.72-14.74-2.61-22.1-8.2-22.1-18.54,0-12.48,9.27-21.15,25.55-21.15,19.01,0,27.69,8.08,28.4,20.92Z"/>
+    <path d="M206.06,234.75h0s-18.12,0-18.12,0h0c-.16-9.76-8.12-17.59-17.88-17.59h-10.92l-.29,17.59h-18.78v-85.33h0c10.76,0,19.49,8.73,19.49,19.49v14.64s5.71,2.09,5.71,2.09c11.38,4.15,21.64,11.07,29.26,20.48,4.42,5.45,7.74,11.22,9.58,17.62,1.14,3.97,1.94,7.85,1.94,11.02ZM159.57,185.23v17.19h12.35c1.55,0,2.18-2,.91-2.89l-13.26-14.3Z"/>
+  </svg>
+  <div class="loading-dots">
+    <span></span><span></span><span></span>
+  </div>
+  <p id="loading-pct"></p>
+  <p id="loading-error">
+    No se pudo cargar el PDF.<br>
+    Abrí desde un servidor local:<br>
+    <span style="font-family:monospace;color:#fff6d7">python -m http.server</span>
+  </p>
+</div>
+
+<div id="book-container">
+  <div id="cover-overlay"></div>
+  <div id="book"></div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn" id="btn-prev">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="11,4 6,9 11,14"/>
+    </svg>
+  </button>
+  <div id="page-indicator">— / —</div>
+  <button class="ctrl-btn" id="btn-next">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="7,4 12,9 7,14"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+  const CATALOGS = {
+    salas: {
+      pages: 38, ratio: 0.5625,
+      theme: 'salas', label: 'Salas', subtitle: 'Salas & Sofás',
+      coverBg: '#fff6d7', coverFg: '#0c1a29',
+      backBg:  '#060b11', backFg:  '#fff6d7',
+    },
+    comedores: {
+      pages: 16, ratio: 0.5625,
+      theme: 'comedores', label: 'Comedores', subtitle: 'Comedores & Mesas',
+      coverBg: '#fff6d7', coverFg: '#380906',
+      backBg:  '#180302', backFg:  '#fff6d7',
+    },
+    alcobas: {
+      pages: null,
+      theme: 'alcobas', label: 'Alcobas', subtitle: 'Alcobas & Descanso',
+      coverBg: '#0c1a29', coverFg: '#fff6d7',
+      backBg:  '#eee9d6', backFg:  '#0c1a29',
+    },
+    auxiliares: {
+      pages: null,
+      theme: 'auxiliares', label: 'Auxiliares', subtitle: 'Auxiliares & Mesas de Centro',
+      coverBg: '#380906', coverFg: '#fff6d7',
+      backBg:  '#eee9d6', backFg:  '#380906',
+    },
+  };
+
+  let pfInst      = null;
+  let currentId   = null;
+  let isOnCover   = true;
+  let isSwitching = false;
+
+  function r(n) { return Math.round(n); }
+  function xe(s) { return s.replace(/&/g, '&amp;'); }
+
+  // Genera SVG string de los 8 paths del logo con color explícito
+  function logoSvgPaths(color) {
+    return [
+      `<path fill="${color}" d="M281.43,190.54v44.21h-16.64v-40.05c0-5.72-4.45-10.58-10.16-10.8-7.94-.31-13.73,4.96-13.73,14.13v36.72h-16.64v-63.22h15.92v9.27h.24c4.04-7.72,11.05-10.93,19.01-10.93,13.43,0,21.99,8.79,21.99,20.68Z"/>`,
+      `<path fill="${color}" d="M356.17,190.78h-16.28c-.95-6.3-4.64-8.32-11.29-8.32-6.3,0-10.1,1.54-10.1,6.18,0,4.28,8.08,5.7,16.04,7.25,18.03,3.4,23.37,9.56,23.53,18.27.2,11.16-8.57,20.41-19.66,21.74-23.57,2.82-38.45-6.01-38.45-21.34h17.11c0,5.11,3.09,9.27,13.67,9.27,6.66,0,10.7-2.73,10.7-6.54,0-4.16-5.59-5.58-17.11-7.72-14.74-2.61-22.1-8.2-22.1-18.54,0-12.48,9.27-21.15,25.55-21.15,19.01,0,27.69,8.08,28.4,20.92Z"/>`,
+      `<path fill="${color}" d="M394.19,171.52v39.57c0,6.22,5.04,11.46,11.25,11.28,7.26-.21,12.4-5.63,12.4-14.02v-36.84h16.64v63.22h-15.92v-8.91h-.24c-3.92,6.77-10.34,10.58-19.25,10.58-13.67,0-21.51-8.56-21.51-22.82v-42.07h16.64Z"/>`,
+      `<path fill="${color}" d="M474.4,149.42v85.33h-16.64v-85.33h16.64Z"/>`,
+      `<path fill="${color}" d="M548.79,222.98c0,6.18,1.31,8.32,3.68,9.27v2.49h-17.94c-.83-2.49-1.43-4.75-1.54-7.49-6.06,6.54-12.36,9.15-20.44,9.15-11.53,0-19.25-7.13-19.25-18.42,0-8.2,2.97-17.94,19.85-20.44l11.88-1.78c6.18-.95,7.49-2.14,7.49-5.35,0-4.4-2.73-7.25-10.93-7.25-6.18,0-9.63,2.73-10.22,8.8h-16.04c1.31-13.31,7.61-22.1,27.81-22.1,16.28,0,25.67,6.89,25.67,17.83v35.3ZM532.51,211.81v-7.84c-2.85,1.78-5.47,2.61-11.88,3.57-6.65.95-10.69,3.33-10.7,9.38,0,4.11,3.2,7.5,7.31,7.61,7.5.19,15.27-4.84,15.27-12.71Z"/>`,
+      `<path fill="${color}" d="M588,148.59v15.45h-16.64v-15.45h16.64ZM588,171.52v63.22h-16.64v-63.22h16.64Z"/>`,
+      `<path fill="${color}" d="M663.22,190.78h-16.28c-.95-6.3-4.64-8.32-11.29-8.32-6.3,0-10.1,1.54-10.1,6.18,0,4.28,8.08,5.7,16.04,7.25,18.03,3.4,23.37,9.56,23.53,18.27.2,11.16-8.57,20.41-19.66,21.74-23.57,2.82-38.45-6.01-38.45-21.34h17.11c0,5.11,3.09,9.27,13.67,9.27,6.65,0,10.7-2.73,10.7-6.54,0-4.16-5.58-5.58-17.11-7.72-14.74-2.61-22.1-8.2-22.1-18.54,0-12.48,9.27-21.15,25.55-21.15,19.01,0,27.69,8.08,28.4,20.92Z"/>`,
+      `<path fill="${color}" d="M206.06,234.75h0s-18.12,0-18.12,0h0c-.16-9.76-8.12-17.59-17.88-17.59h-10.92l-.29,17.59h-18.78v-85.33h0c10.76,0,19.49,8.73,19.49,19.49v14.64s5.71,2.09,5.71,2.09c11.38,4.15,21.64,11.07,29.26,20.48,4.42,5.45,7.74,11.22,9.58,17.62,1.14,3.97,1.94,7.85,1.94,11.02ZM159.57,185.23v17.19h12.35c1.55,0,2.18-2,.91-2.89l-13.26-14.3Z"/>`,
+    ].join('');
+  }
+
+  function coverSvgStr(W, H, subtitle, bgColor, fgColor) {
+    const s = W / 550, cx = r(W/2), cy = r(H/2);
+    const lW = r(290*s), lH = r(lW*155/578);
+    const lX = r(cx - lW/2), lY = r(cy - lH/2 - 28*s);
+    const tY = r(cy + 22*s), fs = r(11*s);
+    const rx = r(22 * s);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%;max-height:100%;display:block;border-radius:${rx}px">
+  <rect width="${W}" height="${H}" fill="${bgColor}" rx="${rx}"/>
+  <svg x="${lX}" y="${lY}" width="${lW}" height="${lH}" viewBox="118 115 578 155" overflow="visible">
+    ${logoSvgPaths(fgColor)}
+  </svg>
+  <text x="${cx}" y="${tY}" text-anchor="middle" fill="${fgColor}" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="${fs}" letter-spacing="2">${xe(subtitle)}</text>
+</svg>`;
+  }
+
+  function backCoverSvgUrl(W, H, subtitle, bgColor, fgColor) {
+    const s = W / 550, cx = r(W/2), cy = r(H/2);
+    const lW = r(200*s), lH = r(lW*155/578);
+    const lX = r(cx - lW/2), lY = r(cy - lH/2);
+    const lw = Math.max(1, r(0.7*s));
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${bgColor}"/>
+  <text x="${cx}" y="${cy - r(90*s)}" text-anchor="middle" fill="${fgColor}" fill-opacity="0.45" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="${r(9*s)}" letter-spacing="${r(5*s)}">DISE&#209;O &amp; CONFORT</text>
+  <svg x="${lX}" y="${lY}" width="${lW}" height="${lH}" viewBox="118 115 578 155">
+    ${logoSvgPaths(fgColor)}
+  </svg>
+  <line x1="${cx - r(20*s)}" y1="${cy + r(46*s)}" x2="${cx + r(20*s)}" y2="${cy + r(46*s)}" stroke="${fgColor}" stroke-opacity="0.3" stroke-width="${lw}"/>
+  <text x="${cx}" y="${cy + r(68*s)}" text-anchor="middle" fill="${fgColor}" fill-opacity="0.45" font-family="Helvetica,Arial,sans-serif" font-size="${r(9*s)}" letter-spacing="${r(4*s)}">${xe(subtitle.toUpperCase())} DE DISE&#209;O</text>
+</svg>`;
+    return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  }
+
+  // ── Helpers compartidos ──────────────────────────────────────────────────
+  function applyPageFlip(bookEl, coverEl, indicator, cat, urls, cvW, cvH, ratio) {
+    const avW = window.innerWidth  - 32;
+    const avH = window.innerHeight - 64 - 62 - 32;
+
+    // Si la mitad del ancho disponible es muy angosta para leer, modo retrato (1 página)
+    const portrait = Math.floor(avW / 2) < 280;
+
+    let PF_W, PF_H;
+    if (portrait) {
+      if (avW * ratio <= avH) { PF_W = avW; PF_H = Math.round(PF_W * ratio); }
+      else                    { PF_H = avH; PF_W = Math.round(PF_H / ratio); }
+      bookEl.style.width  = PF_W + 'px';
+    } else {
+      const halfW = Math.floor(avW / 2);
+      if (halfW * ratio <= avH) { PF_W = halfW; PF_H = Math.round(PF_W * ratio); }
+      else                      { PF_H = avH;   PF_W = Math.round(PF_H / ratio); }
+      bookEl.style.width  = (PF_W * 2) + 'px';
+    }
+    bookEl.style.height = PF_H + 'px';
+
+    urls.forEach(url => {
+      const div = document.createElement('div');
+      div.className = 'pf-page';
+      const img = document.createElement('img');
+      img.src = url;
+      div.appendChild(img);
+      bookEl.appendChild(div);
+    });
+
+    pfInst = new St.PageFlip(bookEl, {
+      width: PF_W, height: PF_H,
+      showCover: false,
+      mobileScrollSupport: true,
+      drawShadow: true,
+      flippingTime: 650,
+      usePortrait: portrait,
+      startZIndex: 1,
+    });
+    pfInst.loadFromHTML(bookEl.querySelectorAll('.pf-page'));
+    pfInst.on('flip', updateIndicator);
+
+    coverEl.innerHTML = coverSvgStr(cvW, cvH, cat.subtitle, cat.coverBg, cat.coverFg);
+    coverEl.style.display = 'flex';
+    coverEl.style.opacity = '1';
+
+    document.getElementById('page-indicator').innerHTML = '<b>Portada</b>';
+    isOnCover = true;
+  }
+
+  // ── Carga un catálogo ────────────────────────────────────────────────────
+  function loadCatalog(id) {
+    if (id === currentId || isSwitching) return;
+    const cat = CATALOGS[id];
+    if (!cat) return;
+
+    isSwitching = true;
+
+    document.querySelectorAll('.nav-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.catalog === id)
+    );
+    document.body.dataset.theme = cat.theme;
+
+    const coverEl   = document.getElementById('cover-overlay');
+    const indicator = document.getElementById('page-indicator');
+
+    if (pfInst) { try { pfInst.destroy(); } catch(e) {} pfInst = null; }
+    const bc = document.getElementById('book-container');
+    const ob = document.getElementById('book');
+    if (ob) ob.remove();
+    const bookEl = document.createElement('div');
+    bookEl.id = 'book';
+    bc.appendChild(bookEl);
+
+    coverEl.innerHTML = '';
+    coverEl.style.display = 'none';
+    coverEl.style.opacity = '0';
+
+    // Próximamente (sin imágenes)
+    if (!cat.pages) {
+      coverEl.style.cssText = 'display:flex;align-items:center;justify-content:center;opacity:1;';
+      const msg = document.createElement('div');
+      msg.style.cssText = 'text-align:center;';
+      msg.innerHTML =
+        `<div style="font-size:.55rem;letter-spacing:.4em;text-transform:uppercase;color:var(--cover-fg);opacity:.45;margin-bottom:1rem">${cat.label}</div>
+         <div style="font-size:1.4rem;letter-spacing:.15em;text-transform:uppercase;color:var(--cover-fg);font-weight:700">Pr&#243;ximamente</div>`;
+      coverEl.appendChild(msg);
+      indicator.innerHTML = `<b>${cat.label}</b>`;
+      isOnCover = false;
+      currentId = id;
+      isSwitching = false;
+      return;
+    }
+
+    // URLs de imágenes pre-renderizadas — instantáneo, sin PDF.js
+    const cvW  = 1600;
+    const cvH  = Math.round(cvW * cat.ratio);
+    const urls = Array.from({ length: cat.pages }, (_, i) =>
+      `pages/${id}/p${String(i + 1).padStart(2, '0')}.jpg`
+    );
+    urls.push(backCoverSvgUrl(cvW, cvH, cat.subtitle, cat.backBg, cat.backFg));
+
+    applyPageFlip(bookEl, coverEl, indicator, cat, urls, cvW, cvH, cat.ratio);
+    currentId   = id;
+    isSwitching = false;
+  }
+
+  function updateIndicator() {
+    if (!pfInst) return;
+    const ind = document.getElementById('page-indicator');
+    const p = pfInst.getCurrentPageIndex();
+    const t = pfInst.getPageCount();
+    ind.innerHTML = p >= t - 1 ? '<b>Contraportada</b>' : `<b>${p+1}</b> / ${t-1}`;
+  }
+
+  function goToBook() {
+    const c = document.getElementById('cover-overlay');
+    isOnCover = false;
+    c.style.opacity = '0';
+    setTimeout(() => { c.style.display = 'none'; }, 360);
+    updateIndicator();
+  }
+
+  function goToCover() {
+    const c = document.getElementById('cover-overlay');
+    isOnCover = true;
+    c.style.display = 'flex';
+    requestAnimationFrame(() => { c.style.opacity = '1'; });
+    document.getElementById('page-indicator').innerHTML = '<b>Portada</b>';
+  }
+
+  function init() {
+    document.querySelectorAll('.nav-tab').forEach(tab =>
+      tab.addEventListener('click', () => loadCatalog(tab.dataset.catalog))
+    );
+
+    document.getElementById('btn-next').addEventListener('click', () => {
+      if (isOnCover) goToBook();
+      else if (pfInst) pfInst.flipNext();
+    });
+    document.getElementById('btn-prev').addEventListener('click', () => {
+      if (!isOnCover && pfInst?.getCurrentPageIndex() === 0) goToCover();
+      else if (!isOnCover && pfInst) pfInst.flipPrev();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        if (isOnCover) goToBook(); else if (pfInst) pfInst.flipNext();
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        if (!isOnCover && pfInst?.getCurrentPageIndex() === 0) goToCover();
+        else if (!isOnCover && pfInst) pfInst.flipPrev();
+      }
+    });
+
+    document.getElementById('btn-fs').addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      document.getElementById('btn-fs').textContent =
+        document.fullscreenElement ? '✕ Salir' : '⛶ Pantalla completa';
+    });
+
+    // Reiniciar el libro al girar el dispositivo o cambiar tamaño de ventana
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (!currentId || isSwitching || isOnCover) return;
+        const cached = catalogCache[currentId];
+        if (!cached || !CATALOGS[currentId]?.pdf) return;
+        const cat = CATALOGS[currentId];
+        const savedPage = pfInst ? pfInst.getCurrentPageIndex() : 0;
+
+        if (pfInst) { try { pfInst.destroy(); } catch(e) {} pfInst = null; }
+        const bc = document.getElementById('book-container');
+        const ob = document.getElementById('book');
+        if (ob) ob.remove();
+        const nb = document.createElement('div');
+        nb.id = 'book';
+        bc.appendChild(nb);
+
+        const coverEl  = document.getElementById('cover-overlay');
+        const indicator = document.getElementById('page-indicator');
+        coverEl.style.display = 'none';
+        coverEl.style.opacity = '0';
+
+        applyPageFlip(nb, coverEl, indicator, cat, cached.urls, cached.cvW, cached.cvH, cached.ratio);
+        isOnCover = false;
+        if (savedPage > 0 && pfInst) setTimeout(() => pfInst?.turnToPage(savedPage), 60);
+        updateIndicator();
+      }, 350);
+    });
+
+    // Splash inicial: se muestra brevemente mientras el primer catálogo inicializa
+    const loadingEl = document.getElementById('loading');
+    loadingEl.style.display = 'flex';
+    loadCatalog('salas');
+    setTimeout(() => {
+      loadingEl.classList.add('fade-out');
+      setTimeout(() => {
+        loadingEl.style.display = 'none';
+        loadingEl.classList.remove('fade-out');
+      }, 550);
+    }, 1200);
+  }
+
+  init();
+</script>
+</body>
+</html>

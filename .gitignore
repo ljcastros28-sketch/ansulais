@@ -1,0 +1,6 @@
+*.pdf
+*.py
+manifest.json
+ANSULAIS.svg
+extract_images.py
+render_pages.py

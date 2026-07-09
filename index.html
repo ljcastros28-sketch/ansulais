@@ -137,7 +137,8 @@
     /* ── RESPONSIVE ── */
     @media (max-width: 500px) {
       #btn-fs { display: none; }
-      #header-center { max-width: calc(100vw - 64px); }
+      #header-isotipo { height: 24px; }
+      #header-center { max-width: calc(100vw - 56px); }
       .nav-tab { padding: 5px 13px; font-size: 0.52rem; letter-spacing: 0.1em; }
       .ctrl-btn { width: 38px; height: 38px; }
     }
@@ -205,12 +206,13 @@
       justify-content: center;
       padding: 16px;
       overflow: hidden;
+      touch-action: pan-y pinch-zoom;
     }
     #carousel {
       position: relative;
       overflow: hidden;
       border-radius: 14px;
-      touch-action: pan-y;
+      touch-action: pan-y pinch-zoom;
     }
     #carousel-track {
       display: flex;
@@ -469,23 +471,42 @@
   }
 
   // Swipe táctil / arrastre con mouse — sigue el dedo y confirma pasar de página
-  // al superar un umbral de distancia, si no vuelve a la posición actual.
+  // al superar un umbral de distancia, si no vuelve a la posición actual. Se
+  // adjunta una sola vez sobre todo el visor (portada + carrusel) para que el
+  // swipe funcione también desde la portada, no solo dentro del libro.
+  // Si aparece un segundo dedo (pinch-zoom) se cancela el arrastre propio y se
+  // deja el gesto al navegador (touch-action: pinch-zoom en el contenedor).
   function attachDragHandlers(el) {
-    let dragging = false, moved = false, startX = 0, startTx = 0;
+    const active = new Map();
+    let dragging = false, draggingCover = false, moved = false, startX = 0, startTx = 0;
 
     el.addEventListener('pointerdown', e => {
-      if (!carousel || isOnCover) return;
-      dragging = true; moved = false;
-      startX  = e.clientX;
-      startTx = -carousel.index * carousel.W;
-      carousel.track.style.transition = 'none';
-      el.setPointerCapture(e.pointerId);
+      active.set(e.pointerId, e.clientX);
+      if (active.size > 1) {
+        if (dragging && carousel) setTrackPosition(carousel.index, false);
+        dragging = false; draggingCover = false;
+        return;
+      }
+      moved = false;
+      startX = e.clientX;
+      if (isOnCover) {
+        draggingCover = true;
+      } else if (carousel) {
+        dragging = true;
+        startTx = -carousel.index * carousel.W;
+        carousel.track.style.transition = 'none';
+      } else {
+        return;
+      }
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
     });
 
     el.addEventListener('pointermove', e => {
-      if (!dragging) return;
+      if (active.size > 1) return;
       const dx = e.clientX - startX;
       if (Math.abs(dx) > 4) moved = true;
+      if (draggingCover) return;
+      if (!dragging || !carousel) return;
       const min = -(carousel.count - 1) * carousel.W;
       let next = startTx + dx;
       if (next > 0)   next = next * 0.35;
@@ -493,19 +514,32 @@
       carousel.track.style.transform = `translateX(${next}px)`;
     });
 
-    function endDrag(e) {
-      if (!dragging) return;
-      dragging = false;
+    function finish(e, commit) {
+      active.delete(e.pointerId);
+      const wasDraggingCover = draggingCover;
+      const wasDragging      = dragging;
+      dragging = false; draggingCover = false;
+
+      if (!commit) {
+        if (wasDragging && carousel) setTrackPosition(carousel.index, true);
+        return;
+      }
       if (!moved) return;
       const dx = e.clientX - startX;
+
+      if (wasDraggingCover) {
+        if (dx <= -60) goToBook();
+        return;
+      }
+      if (!wasDragging || !carousel) return;
       const threshold = carousel.W * 0.18;
       if (dx <= -threshold)      goNext();
       else if (dx >= threshold)  goPrev();
       else                       setTrackPosition(carousel.index, true);
     }
 
-    el.addEventListener('pointerup', endDrag);
-    el.addEventListener('pointercancel', endDrag);
+    el.addEventListener('pointerup',     e => finish(e, true));
+    el.addEventListener('pointercancel', e => finish(e, false));
   }
 
   function buildCarousel(carouselEl, coverEl, cat, urls, cvW, cvH) {
@@ -529,7 +563,6 @@
 
     carousel = { track, count: urls.length, index: 0, W, H };
     setTrackPosition(0, false);
-    attachDragHandlers(carouselEl);
 
     coverEl.innerHTML = coverSvgStr(cvW, cvH, cat.subtitle, cat.coverBg, cat.coverFg);
     coverEl.style.display = 'flex';
@@ -620,6 +653,8 @@
   }
 
   function init() {
+    attachDragHandlers(document.getElementById('book-container'));
+
     document.querySelectorAll('.nav-tab').forEach(tab =>
       tab.addEventListener('click', () => loadCatalog(tab.dataset.catalog))
     );

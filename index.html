@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ANSULAIS — Catálogos</title>
-  <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
   <style>
     @font-face {
       font-family: 'Helvetica LT Pro';
@@ -197,7 +196,7 @@
       line-height: 2.2;
     }
 
-    /* ── BOOK ── */
+    /* ── CARRUSEL ── */
     #book-container {
       position: fixed;
       top: 64px; bottom: 62px; left: 0; right: 0;
@@ -207,21 +206,32 @@
       padding: 16px;
       overflow: hidden;
     }
-    #book {
+    #carousel {
       position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      touch-action: pan-y;
     }
-    .pf-page img {
+    #carousel-track {
+      display: flex;
+      height: 100%;
+    }
+    .car-slide {
+      flex: none;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .car-slide img {
       width: 100%; height: 100%;
       object-fit: fill;
       display: block;
       pointer-events: none;
       user-select: none;
       -webkit-user-drag: none;
-      border-radius: 0;
+      border-radius: 14px;
     }
-    /* Round outer corners only (spine side stays square, like a real book) */
-    .stf__item.--left  .pf-page img { border-radius: 14px 0 0 14px; }
-    .stf__item.--right .pf-page img { border-radius: 0 14px 14px 0; }
     /* ── PORTADA ── */
     #cover-overlay {
       position: absolute;
@@ -328,7 +338,7 @@
 
 <div id="book-container">
   <div id="cover-overlay"></div>
-  <div id="book"></div>
+  <div id="carousel"></div>
 </div>
 
 <div id="controls">
@@ -373,7 +383,7 @@
     },
   };
 
-  let pfInst      = null;
+  let carousel    = null;
   let currentId   = null;
   let isOnCover   = true;
   let isSwitching = false;
@@ -428,46 +438,98 @@
   }
 
   // ── Helpers compartidos ──────────────────────────────────────────────────
-  function applyPageFlip(bookEl, coverEl, indicator, cat, urls, cvW, cvH, ratio) {
+  // Calcula el tamaño de una página (imagen única) que quepa en el viewport disponible
+  function fitSize(ratio) {
     const avW = window.innerWidth  - 32;
     const avH = window.innerHeight - 64 - 62 - 32;
+    let W, H;
+    if (avW * ratio <= avH) { W = avW; H = Math.round(W * ratio); }
+    else                    { H = avH; W = Math.round(H / ratio); }
+    return { W, H };
+  }
 
-    // Si la mitad del ancho disponible es muy angosta para leer, modo retrato (1 página)
-    const portrait = Math.floor(avW / 2) < 280;
+  function setTrackPosition(index, animate) {
+    if (!carousel) return;
+    carousel.index = Math.max(0, Math.min(index, carousel.count - 1));
+    carousel.track.style.transition = animate ? 'transform 0.4s cubic-bezier(.22,.61,.36,1)' : 'none';
+    carousel.track.style.transform  = `translateX(${-carousel.index * carousel.W}px)`;
+  }
 
-    let PF_W, PF_H;
-    if (portrait) {
-      if (avW * ratio <= avH) { PF_W = avW; PF_H = Math.round(PF_W * ratio); }
-      else                    { PF_H = avH; PF_W = Math.round(PF_H / ratio); }
-      bookEl.style.width  = PF_W + 'px';
-    } else {
-      const halfW = Math.floor(avW / 2);
-      if (halfW * ratio <= avH) { PF_W = halfW; PF_H = Math.round(PF_W * ratio); }
-      else                      { PF_H = avH;   PF_W = Math.round(PF_H / ratio); }
-      bookEl.style.width  = (PF_W * 2) + 'px';
+  function goNext() {
+    if (!carousel) return;
+    setTrackPosition(carousel.index + 1, true);
+    updateIndicator();
+  }
+
+  function goPrev() {
+    if (!carousel) return;
+    if (carousel.index === 0) { goToCover(); return; }
+    setTrackPosition(carousel.index - 1, true);
+    updateIndicator();
+  }
+
+  // Swipe táctil / arrastre con mouse — sigue el dedo y confirma pasar de página
+  // al superar un umbral de distancia, si no vuelve a la posición actual.
+  function attachDragHandlers(el) {
+    let dragging = false, moved = false, startX = 0, startTx = 0;
+
+    el.addEventListener('pointerdown', e => {
+      if (!carousel || isOnCover) return;
+      dragging = true; moved = false;
+      startX  = e.clientX;
+      startTx = -carousel.index * carousel.W;
+      carousel.track.style.transition = 'none';
+      el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) moved = true;
+      const min = -(carousel.count - 1) * carousel.W;
+      let next = startTx + dx;
+      if (next > 0)   next = next * 0.35;
+      if (next < min) next = min + (next - min) * 0.35;
+      carousel.track.style.transform = `translateX(${next}px)`;
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved) return;
+      const dx = e.clientX - startX;
+      const threshold = carousel.W * 0.18;
+      if (dx <= -threshold)      goNext();
+      else if (dx >= threshold)  goPrev();
+      else                       setTrackPosition(carousel.index, true);
     }
-    bookEl.style.height = PF_H + 'px';
 
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  }
+
+  function buildCarousel(carouselEl, coverEl, cat, urls, cvW, cvH) {
+    const { W, H } = fitSize(cat.ratio);
+    carouselEl.style.width  = W + 'px';
+    carouselEl.style.height = H + 'px';
+
+    const track = document.createElement('div');
+    track.id = 'carousel-track';
     urls.forEach(url => {
-      const div = document.createElement('div');
-      div.className = 'pf-page';
+      const slide = document.createElement('div');
+      slide.className = 'car-slide';
+      slide.style.width = W + 'px';
       const img = document.createElement('img');
       img.src = url;
-      div.appendChild(img);
-      bookEl.appendChild(div);
+      img.draggable = false;
+      slide.appendChild(img);
+      track.appendChild(slide);
     });
+    carouselEl.appendChild(track);
 
-    pfInst = new St.PageFlip(bookEl, {
-      width: PF_W, height: PF_H,
-      showCover: false,
-      mobileScrollSupport: true,
-      drawShadow: true,
-      flippingTime: 650,
-      usePortrait: portrait,
-      startZIndex: 1,
-    });
-    pfInst.loadFromHTML(bookEl.querySelectorAll('.pf-page'));
-    pfInst.on('flip', updateIndicator);
+    carousel = { track, count: urls.length, index: 0, W, H };
+    setTrackPosition(0, false);
+    attachDragHandlers(carouselEl);
 
     coverEl.innerHTML = coverSvgStr(cvW, cvH, cat.subtitle, cat.coverBg, cat.coverFg);
     coverEl.style.display = 'flex';
@@ -493,13 +555,13 @@
     const coverEl   = document.getElementById('cover-overlay');
     const indicator = document.getElementById('page-indicator');
 
-    if (pfInst) { try { pfInst.destroy(); } catch(e) {} pfInst = null; }
+    carousel = null;
     const bc = document.getElementById('book-container');
-    const ob = document.getElementById('book');
-    if (ob) ob.remove();
-    const bookEl = document.createElement('div');
-    bookEl.id = 'book';
-    bc.appendChild(bookEl);
+    const oc = document.getElementById('carousel');
+    if (oc) oc.remove();
+    const carouselEl = document.createElement('div');
+    carouselEl.id = 'carousel';
+    bc.appendChild(carouselEl);
 
     coverEl.innerHTML = '';
     coverEl.style.display = 'none';
@@ -529,16 +591,15 @@
     );
     urls.push(backCoverSvgUrl(cvW, cvH, cat.subtitle, cat.backBg, cat.backFg));
 
-    applyPageFlip(bookEl, coverEl, indicator, cat, urls, cvW, cvH, cat.ratio);
+    buildCarousel(carouselEl, coverEl, cat, urls, cvW, cvH);
     currentId   = id;
     isSwitching = false;
   }
 
   function updateIndicator() {
-    if (!pfInst) return;
+    if (!carousel) return;
     const ind = document.getElementById('page-indicator');
-    const p = pfInst.getCurrentPageIndex();
-    const t = pfInst.getPageCount();
+    const p = carousel.index, t = carousel.count;
     ind.innerHTML = p >= t - 1 ? '<b>Contraportada</b>' : `<b>${p+1}</b> / ${t-1}`;
   }
 
@@ -565,20 +626,18 @@
 
     document.getElementById('btn-next').addEventListener('click', () => {
       if (isOnCover) goToBook();
-      else if (pfInst) pfInst.flipNext();
+      else goNext();
     });
     document.getElementById('btn-prev').addEventListener('click', () => {
-      if (!isOnCover && pfInst?.getCurrentPageIndex() === 0) goToCover();
-      else if (!isOnCover && pfInst) pfInst.flipPrev();
+      if (!isOnCover) goPrev();
     });
 
     document.addEventListener('keydown', e => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        if (isOnCover) goToBook(); else if (pfInst) pfInst.flipNext();
+        if (isOnCover) goToBook(); else goNext();
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        if (!isOnCover && pfInst?.getCurrentPageIndex() === 0) goToCover();
-        else if (!isOnCover && pfInst) pfInst.flipPrev();
+        if (!isOnCover) goPrev();
       }
     });
 
@@ -591,34 +650,23 @@
         document.fullscreenElement ? '✕ Salir' : '⛶ Pantalla completa';
     });
 
-    // Reiniciar el libro al girar el dispositivo o cambiar tamaño de ventana
+    // Reajustar el tamaño de la página al girar el dispositivo o cambiar la ventana
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (!currentId || isSwitching || isOnCover) return;
-        const cached = catalogCache[currentId];
-        if (!cached || !CATALOGS[currentId]?.pdf) return;
+        if (!currentId || isSwitching || !carousel) return;
         const cat = CATALOGS[currentId];
-        const savedPage = pfInst ? pfInst.getCurrentPageIndex() : 0;
+        if (!cat || !cat.pages) return;
 
-        if (pfInst) { try { pfInst.destroy(); } catch(e) {} pfInst = null; }
-        const bc = document.getElementById('book-container');
-        const ob = document.getElementById('book');
-        if (ob) ob.remove();
-        const nb = document.createElement('div');
-        nb.id = 'book';
-        bc.appendChild(nb);
-
-        const coverEl  = document.getElementById('cover-overlay');
-        const indicator = document.getElementById('page-indicator');
-        coverEl.style.display = 'none';
-        coverEl.style.opacity = '0';
-
-        applyPageFlip(nb, coverEl, indicator, cat, cached.urls, cached.cvW, cached.cvH, cached.ratio);
-        isOnCover = false;
-        if (savedPage > 0 && pfInst) setTimeout(() => pfInst?.turnToPage(savedPage), 60);
-        updateIndicator();
+        const { W, H } = fitSize(cat.ratio);
+        const el = document.getElementById('carousel');
+        el.style.width  = W + 'px';
+        el.style.height = H + 'px';
+        carousel.W = W;
+        carousel.H = H;
+        carousel.track.querySelectorAll('.car-slide').forEach(s => s.style.width = W + 'px');
+        setTrackPosition(carousel.index, false);
       }, 350);
     });
 

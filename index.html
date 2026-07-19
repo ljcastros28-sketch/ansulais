@@ -134,6 +134,43 @@
     }
     .nav-tab.pronto { opacity: 0.38; cursor: default; }
 
+    .chev { display: inline-block; font-size: 0.7em; margin-left: 2px; transition: transform 0.2s; }
+    #tab-auxiliares.open .chev { transform: rotate(180deg); }
+
+    /* Fixed (no absolute) a propósito: header-center tiene overflow-x:auto y
+       recortaría el menú si fuera un hijo posicionado dentro de él. */
+    .aux-dropdown {
+      position: fixed;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px;
+      min-width: 150px;
+      background: var(--chrome-bg);
+      border: 2px solid var(--chrome-faint);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      z-index: 200;
+    }
+    .aux-dropdown.open { display: flex; }
+    .aux-item {
+      padding: 7px 16px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: var(--chrome-muted);
+      font-family: inherit;
+      font-size: 0.56rem;
+      letter-spacing: 0.14em;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .aux-item:hover:not(.pronto) { background: var(--chrome-hover); color: var(--chrome-fg); }
+    .aux-item.active { background: var(--tab-on); color: var(--tab-on-fg); }
+    .aux-item.pronto { opacity: 0.38; cursor: default; }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 500px) {
       #btn-fs { display: none; }
@@ -310,10 +347,16 @@
     <button class="nav-tab active" data-catalog="salas">Salas</button>
     <button class="nav-tab"        data-catalog="comedores">Comedores</button>
     <button class="nav-tab"        data-catalog="alcobas">Alcobas</button>
-    <button class="nav-tab pronto" data-catalog="auxiliares">Auxiliares</button>
+    <button class="nav-tab" id="tab-auxiliares" type="button">Auxiliares <span class="chev">&#9662;</span></button>
   </div>
 
   <button id="btn-fs">&#x26F6; Pantalla completa</button>
+</div>
+
+<div class="aux-dropdown" id="aux-dropdown">
+  <button class="aux-item"        data-catalog="aux-salas">Salas</button>
+  <button class="aux-item pronto" data-catalog="aux-comedores">Comedores</button>
+  <button class="aux-item pronto" data-catalog="aux-alcobas">Alcobas</button>
 </div>
 
 <div id="loading">
@@ -377,9 +420,21 @@
       coverBg: '#0c1a29', coverFg: '#fff6d7',
       backBg:  '#eee9d6', backFg:  '#0c1a29',
     },
-    auxiliares: {
+    'aux-salas': {
+      pages: 32, ratio: 0.5625,
+      theme: 'auxiliares', label: 'Auxiliares · Salas', subtitle: 'Auxiliares de Salas',
+      coverBg: '#380906', coverFg: '#fff6d7',
+      backBg:  '#eee9d6', backFg:  '#380906',
+    },
+    'aux-comedores': {
       pages: null,
-      theme: 'auxiliares', label: 'Auxiliares', subtitle: 'Auxiliares & Mesas de Centro',
+      theme: 'auxiliares', label: 'Auxiliares · Comedores', subtitle: 'Auxiliares de Comedores',
+      coverBg: '#380906', coverFg: '#fff6d7',
+      backBg:  '#eee9d6', backFg:  '#380906',
+    },
+    'aux-alcobas': {
+      pages: null,
+      theme: 'auxiliares', label: 'Auxiliares · Alcobas', subtitle: 'Auxiliares de Alcobas',
       coverBg: '#380906', coverFg: '#fff6d7',
       backBg:  '#eee9d6', backFg:  '#380906',
     },
@@ -580,7 +635,11 @@
 
     isSwitching = true;
 
-    document.querySelectorAll('.nav-tab').forEach(t =>
+    document.querySelectorAll('.nav-tab[data-catalog]').forEach(t =>
+      t.classList.toggle('active', t.dataset.catalog === id)
+    );
+    document.getElementById('tab-auxiliares').classList.toggle('active', id.startsWith('aux-'));
+    document.querySelectorAll('.aux-item').forEach(t =>
       t.classList.toggle('active', t.dataset.catalog === id)
     );
     document.body.dataset.theme = cat.theme;
@@ -652,12 +711,58 @@
     document.getElementById('page-indicator').innerHTML = '<b>Portada</b>';
   }
 
+  // Menú desplegable de la pestaña "Auxiliares" — fixed y posicionado por JS
+  // (ver comentario en el CSS de .aux-dropdown sobre por qué no es absolute).
+  function positionAuxDropdown() {
+    const btn = document.getElementById('tab-auxiliares');
+    const dd  = document.getElementById('aux-dropdown');
+    const r   = btn.getBoundingClientRect();
+    dd.style.top  = (r.bottom + 8) + 'px';
+    dd.style.left = (r.left + r.width / 2) + 'px';
+    dd.style.transform = 'translateX(-50%)';
+    // Recorte a los bordes del viewport una vez conocido el ancho real
+    const ddRect = dd.getBoundingClientRect();
+    const margin = 8;
+    let left = r.left + r.width / 2;
+    if (ddRect.left < margin) left += margin - ddRect.left;
+    if (ddRect.right > window.innerWidth - margin) left -= ddRect.right - (window.innerWidth - margin);
+    dd.style.left = left + 'px';
+  }
+
+  function toggleAuxDropdown(open) {
+    const wrap = document.getElementById('tab-auxiliares');
+    const dd   = document.getElementById('aux-dropdown');
+    const willOpen = open !== undefined ? open : !dd.classList.contains('open');
+    if (willOpen) {
+      dd.classList.add('open');
+      wrap.classList.add('open');
+      positionAuxDropdown();
+    } else {
+      dd.classList.remove('open');
+      wrap.classList.remove('open');
+    }
+  }
+
   function init() {
     attachDragHandlers(document.getElementById('book-container'));
 
-    document.querySelectorAll('.nav-tab').forEach(tab =>
+    document.querySelectorAll('.nav-tab[data-catalog]').forEach(tab =>
       tab.addEventListener('click', () => loadCatalog(tab.dataset.catalog))
     );
+
+    document.getElementById('tab-auxiliares').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleAuxDropdown();
+    });
+    document.querySelectorAll('.aux-item').forEach(item =>
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        loadCatalog(item.dataset.catalog);
+        toggleAuxDropdown(false);
+      })
+    );
+    document.addEventListener('click', () => toggleAuxDropdown(false));
+    window.addEventListener('resize', () => toggleAuxDropdown(false));
 
     document.getElementById('btn-next').addEventListener('click', () => {
       if (isOnCover) goToBook();

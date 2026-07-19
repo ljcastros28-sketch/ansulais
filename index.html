@@ -154,22 +154,22 @@
     }
     .aux-dropdown.open { display: flex; }
     .aux-item {
-      padding: 7px 16px;
+      padding: 9px 18px;
       border-radius: 10px;
       border: none;
       background: transparent;
-      color: var(--chrome-muted);
+      color: var(--chrome-fg);
       font-family: inherit;
-      font-size: 0.56rem;
-      letter-spacing: 0.14em;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
       text-align: left;
       cursor: pointer;
       transition: all 0.2s;
       white-space: nowrap;
     }
-    .aux-item:hover:not(.pronto) { background: var(--chrome-hover); color: var(--chrome-fg); }
+    .aux-item:hover:not(.pronto) { background: var(--chrome-hover); }
     .aux-item.active { background: var(--tab-on); color: var(--tab-on-fg); }
-    .aux-item.pronto { opacity: 0.38; cursor: default; }
+    .aux-item.pronto { opacity: 0.5; cursor: default; }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 500px) {

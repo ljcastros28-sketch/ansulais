@@ -8,6 +8,12 @@
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- App instalable (ver app.webmanifest y sw.js) -->
+<link rel="manifest" href="app.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Ansulais">
 <meta name="robots" content="noindex, nofollow">
 <style>
   /* Misma letra y paleta que ansulais.com. La letra va en la carpeta para que se vea
@@ -310,6 +316,12 @@
   @keyframes pulse { 0%, 100% { opacity: 0.55; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1); } }
   @keyframes dot { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
 
+  /* Instalada como app ya abre a pantalla completa */
+  @media (display-mode: fullscreen), (display-mode: standalone) {
+    #btn-fs { display: none; }
+  }
+  .icon-btn[hidden] { display: none; }
+
   /* ---------- PANTALLAS PEQUEÑAS ---------- */
   @media (max-width: 760px) {
     :root { --header-h: 58px; --controls-h: 58px; }
@@ -359,6 +371,9 @@
   <div class="header-actions">
     <button class="icon-btn" id="btn-index" aria-label="Ver todas las páginas">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-install" aria-label="Instalar como app" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
     </button>
     <button class="icon-btn" id="btn-fs" aria-label="Pantalla completa">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
@@ -657,17 +672,50 @@
   });
   document.addEventListener('contextmenu', function (e) { if (e.target.tagName === 'IMG') e.preventDefault(); });
 
-  var wakeLock = null;
   document.getElementById('btn-fs').addEventListener('click', function () {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
     else document.exitFullscreen();
   });
-  document.addEventListener('fullscreenchange', function () {
-    // En pantalla completa se pide que la tablet no apague la pantalla (si el navegador lo permite)
-    if (document.fullscreenElement && navigator.wakeLock) {
-      navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; }).catch(function () {});
+
+  // Que la tablet no apague la pantalla mientras se muestra el catálogo a pantalla completa
+  // o instalado como app (si el navegador lo permite). El navegador suelta el bloqueo al
+  // salir de la app, por eso se vuelve a pedir al regresar.
+  var wakeLock = null;
+  function isAppMode() {
+    return !!document.fullscreenElement || window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+  }
+  function updateWakeLock() {
+    if (!navigator.wakeLock) return;
+    if (isAppMode() && document.visibilityState === 'visible') {
+      if (!wakeLock) navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; l.addEventListener('release', function () { wakeLock = null; }); }).catch(function () {});
     } else if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  }
+  document.addEventListener('fullscreenchange', updateWakeLock);
+  document.addEventListener('visibilitychange', updateWakeLock);
+  updateWakeLock();
+
+  // ---------- Instalar como app ----------
+  // Chrome/Edge en Android avisan cuando se puede instalar: ahí aparece el botón de
+  // descarga. En iPad se instala desde Safari: Compartir > Agregar a inicio.
+  var installPrompt = null;
+  var btnInstall = document.getElementById('btn-install');
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installPrompt = e;
+    btnInstall.hidden = false;
   });
+  btnInstall.addEventListener('click', function () {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.finally(function () { installPrompt = null; btnInstall.hidden = true; });
+  });
+  window.addEventListener('appinstalled', function () { btnInstall.hidden = true; });
+
+  // Guardar el catálogo en la tablet para usarlo sin internet (requiere https; abierto
+  // como archivo suelto en el computador no aplica)
+  if ('serviceWorker' in navigator && window.isSecureContext && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js');
+  }
 
   var resizeTimer;
   window.addEventListener('resize', function () {

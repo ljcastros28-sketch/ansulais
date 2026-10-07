@@ -10,12 +10,18 @@ Prepara los archivos del catálogo de la tablet (se corre desde esta carpeta):
    están en la web pero no en los PDF (lista PIEZAS de abajo) a productos/<código>/
    y escribe piezas.js con su código, nombre, fotos y color de fondo.
 3. Portadas (portadas/<seccion>.webp) y códigos QR (qr/<seccion>.svg).
+4. sw.js: el service worker que guarda todo el catálogo en la tablet para usarlo sin
+   internet (app instalable). Lleva la lista de archivos y una versión que cambia
+   cuando cambia cualquier archivo, así la tablet se actualiza sola.
+
+Córrelo SIEMPRE después de cambiar algo (también index.html), antes de subir.
 
 Requisitos: pip install pillow segno
 
 Para agregar otra pieza de la web: súmala a PIEZAS con su código de la web y la
 sección de la tablet donde va, y vuelve a correr el script.
 """
+import hashlib
 import io
 import json
 import os
@@ -160,7 +166,58 @@ def portadas_y_qr():
     print("portadas:", len(PORTADAS), "| QR:", len(qrs))
 
 
+# Plantilla del service worker (ver service_worker())
+SW = r"""// Service worker del catálogo: guarda todo el catálogo en la tablet para que funcione sin
+// internet. Lo genera preparar_catalogo.py (no editarlo a mano), con la lista de
+// archivos y una VERSION que cambia cuando cambia cualquier archivo; así la tablet baja
+// la versión nueva sola la próxima vez que abra la app con internet.
+var VERSION = '__VERSION__';
+var ARCHIVOS = __ARCHIVOS__;
+var CACHE = 'ansulais-catalogo-' + VERSION;
+
+self.addEventListener('install', function (e) {
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }).then(function () { return self.skipWaiting(); }));
+});
+
+self.addEventListener('activate', function (e) {
+  e.waitUntil(caches.keys().then(function (keys) {
+    return Promise.all(keys.filter(function (k) { return k.indexOf('ansulais-catalogo-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+  }).then(function () { return self.clients.claim(); }));
+});
+
+// Primero lo guardado (rápido y sin internet); si no está, de internet.
+self.addEventListener('fetch', function (e) {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(function (r) { return r || fetch(e.request); }));
+});
+"""
+
+# Lo que la app guarda en la tablet: todo lo que usa el visor
+GUARDAR = ["index.html", "piezas.js", "app.webmanifest", "favicon.ico", "favicon.svg", "apple-touch-icon.png"]
+CARPETAS_GUARDAR = ["tipografia", "iconos", "portadas", "qr", "productos", "pages"]
+
+
+def service_worker():
+    archivos = list(GUARDAR)
+    for carpeta in CARPETAS_GUARDAR:
+        for raiz, _, nombres in os.walk(carpeta):
+            for n in sorted(nombres):
+                if n.endswith((".webp", ".svg", ".png", ".woff2")):
+                    archivos.append(os.path.join(raiz, n).replace(os.sep, "/"))
+    huella = hashlib.sha1()
+    for a in archivos:
+        huella.update(a.encode())
+        with open(a, "rb") as f:
+            huella.update(f.read())
+    sw = SW.replace("__VERSION__", huella.hexdigest()[:10]).replace("__ARCHIVOS__", json.dumps(["./"] + archivos, indent=2))
+    with io.open("sw.js", "w", encoding="utf-8", newline="\n") as f:
+        f.write(sw)
+    peso = sum(os.path.getsize(a) for a in archivos) / 1e6
+    print("sw.js: %d archivos, %.1f MB, versión %s" % (len(archivos), peso, huella.hexdigest()[:10]))
+
+
 if __name__ == "__main__":
     paginas()
     piezas_nuevas()
     portadas_y_qr()
+    service_worker()

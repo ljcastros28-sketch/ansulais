@@ -1,6 +1,19 @@
+# Originales y herramientas que no se publican
 *.pdf
 *.py
-manifest.json
+!preparar_catalogo.py
+!render_pages.py
 ANSULAIS.svg
-extract_images.py
-render_pages.py
+manifest.json
+__pycache__/
+images/
+
+# El visor usa pages/<sección>/pNN.webp: las pNN.jpg (4000 px) son la fuente de
+# preparar_catalogo.py y se quedan solo en el computador
+pages/**/*.jpg
+
+# Helvetica LT Pro es una fuente con licencia comercial: no se publica (el visor usa Montserrat)
+tipografia/*.ttf
+
+# Logo viejo, ya no se usa (el logo va en el SVG de index.html)
+logo.svg
